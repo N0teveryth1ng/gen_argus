@@ -1,13 +1,11 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, request, jsonify
 from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
 import os
+import json
 from pydantic import ValidationError
-from schemas.event import EventIngestSchema  # Still using Pydantic for ultra-fast validation
-import asyncio
-from confluent_kafka import producer
-
-
+from schemas.event import EventIngestSchema
+from confluent_kafka import Producer
 
 load_dotenv()
 
@@ -15,51 +13,40 @@ DATABASE_URL = os.getenv('DATABASE_URL')
 engine = create_engine(DATABASE_URL)
 app = Flask(__name__, template_folder='templates')
 
-
-
-# kafka delivery check: if ts receiving the data properly or not 
-def delivery_secure(msg, err):
-    if err is not None:
-        print(f"[KAFKA ERROR] message delivery failed")
-    else:
-        print(f"[KAFKA SUCCESS] message delivery success")
-
-
-
-# 1. Initialize the Kafka Producer once when the app starts
-kafka_config = {'bootstrap.servers': 'localhost:9092'}
+KAFKA_BOOTSTRAP_SERVERS = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092')
+kafka_config = {'bootstrap.servers': KAFKA_BOOTSTRAP_SERVERS}
 producer = Producer(kafka_config)
 
 
+def delivery_report(err, msg):
+    if err is not None:
+        print(f"[KAFKA ERROR] message delivery failed: {err}")
+    else:
+        print(f"[KAFKA SUCCESS] delivered to {msg.topic()} [{msg.partition()}]")
 
 
-# ingestion event 
+
+
 @app.route("/ingest", methods=["POST"])
-async def ingest_pipeline():
-
-
-    raw_data = request.get_json(force=True)
-    payload = EventIngestSchema(**raw_data)
-
-     
-    if not payload:
-       return jsonify({"error:" "No data provided"}), 400  
-         
-         
+def ingest_pipeline():
     try:
+        raw_data = request.get_json(force=True)
+        payload = EventIngestSchema(**raw_data)
+    except ValidationError as exc:
+        return jsonify({"error": exc.errors()}), 422
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 400
+
+    try:
+        message_bytes = json.dumps(payload.model_dump(mode="json")).encode("utf-8")
         producer.produce(
-            topic='system-events', 
-            key=str(payload.id), 
+            topic='system-events',
+            key=str(payload.event_id),
             value=message_bytes,
-            callback=delivery_report
+            callback=delivery_report,
         )
-        
-        # push the data to kafka
         producer.poll(0)
-        
-        return jsonify({"status": "Data received and queued in kafka ✌️!"}), 200
-
-
+        return jsonify({"status": "Data received and queued in kafka ✌️!", "event_id": payload.event_id}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
         

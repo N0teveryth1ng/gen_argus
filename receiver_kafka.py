@@ -19,7 +19,7 @@ try:
         # poll the server for messages
         msg = consumer.poll(1.0)
         
-        if msg:
+        if msg is None:
             continue
         if msg.error():
             print(f"consumer error.{msg.error()}")
@@ -27,8 +27,12 @@ try:
         
         print(f"Received message: {msg.value().decode('utf-8')}") 
         
+        
+        
 except Exception as e:
-    print(f"error: {e}")
+    print(f" system error: {e}")
+finally:
+    consumer.close()
     
     
     

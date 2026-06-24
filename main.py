@@ -17,6 +17,15 @@ app = Flask(__name__, template_folder='templates')
 
 
 
+# kafka delivery check: if ts receiving the data properly or not 
+def delivery_secure(msg, err):
+    if err is not None:
+        print(f"[KAFKA ERROR] message delivery failed")
+    else:
+        print(f"[KAFKA SUCCESS] message delivery success")
+
+
+
 # 1. Initialize the Kafka Producer once when the app starts
 kafka_config = {'bootstrap.servers': 'localhost:9092'}
 producer = Producer(kafka_config)

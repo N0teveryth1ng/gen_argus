@@ -2,7 +2,8 @@ services:
   # The Web API (Flask)
   - type: web
     name: telemetry-api
-    env: python
+    runtime: python
+    plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn main:app --bind 0.0.0.0:$PORT
     envVars:
@@ -20,7 +21,8 @@ services:
   # The Background Worker (Consumer)
   - type: worker
     name: telemetry-consumer
-    env: python
+    runtime: python
+    plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: python receiver_kafka.py
     envVars:

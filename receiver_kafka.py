@@ -16,6 +16,17 @@ config = {
     'group.id': 'my-python-group',
     'auto.offset.reset': 'earliest',
 }
+
+KAFKA_USERNAME = os.getenv('KAFKA_USERNAME')
+KAFKA_PASSWORD = os.getenv('KAFKA_PASSWORD')
+
+if KAFKA_USERNAME and KAFKA_PASSWORD:
+    config.update({
+        'security.protocol': 'SASL_SSL',
+        'sasl.mechanisms': 'PLAIN',
+        'sasl.username': KAFKA_USERNAME,
+        'sasl.password': KAFKA_PASSWORD
+    })
 consumer = Consumer(config)
 consumer.subscribe(['system-events'])
 

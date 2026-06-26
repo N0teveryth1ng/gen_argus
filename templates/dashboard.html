@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Telemetry Dashboard</title>
+    <!-- Use Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --surface-color: rgba(30, 41, 59, 0.7);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #38bdf8;
+            --accent-glow: rgba(56, 189, 248, 0.4);
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            min-height: 100vh;
+            padding: 2rem;
+            background-image: 
+                radial-gradient(circle at 15% 50%, rgba(56, 189, 248, 0.08), transparent 25%),
+                radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.08), transparent 25%);
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        h1::before {
+            content: '';
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            background-color: #10b981;
+            border-radius: 50%;
+            box-shadow: 0 0 10px #10b981;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+        }
+
+        .status {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            background: rgba(255,255,255,0.05);
+            padding: 0.5rem 1rem;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .card {
+            background: var(--surface-color);
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .card h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 250px;
+            width: 100%;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            color: var(--text-muted);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            background: rgba(0,0,0,0.2);
+        }
+
+        tbody tr:hover {
+            background: rgba(255,255,255,0.02);
+        }
+
+        .event-badge {
+            background: rgba(56, 189, 248, 0.1);
+            color: var(--accent);
+            padding: 0.2rem 0.6rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            border: 1px solid rgba(56, 189, 248, 0.2);
+        }
+
+        .full-width {
+            grid-column: 1 / -1;
+        }
+        
+        /* Auto-scroll for table body */
+        .table-wrapper {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        /* Scrollbar styling */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-color); }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
+
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>System Telemetry</h1>
+        <div class="status" id="status-indicator">Connected • Live Updates</div>
+    </header>
+
+    <div class="dashboard-grid">
+        <!-- Event Types Chart -->
+        <div class="card">
+            <h2>Events by Type</h2>
+            <div class="chart-container">
+                <canvas id="typeChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Event Sources Chart -->
+        <div class="card">
+            <h2>Events by Source</h2>
+            <div class="chart-container">
+                <canvas id="sourceChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Live Feed Table -->
+        <div class="card full-width">
+            <h2>Live Event Stream (Top 50)</h2>
+            <div class="table-wrapper">
+                <table id="eventsTable">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Event Type</th>
+                            <th>Source</th>
+                            <th>Event ID</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Rows populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Chart instances
+        let typeChartInstance = null;
+        let sourceChartInstance = null;
+
+        function setChartFallback(message, elementId) {
+            const container = document.getElementById(elementId);
+            if (!container) return;
+            container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#94a3b8;">${message}</div>`;
+        }
+
+        function configureChartDefaults() {
+            if (typeof Chart === 'undefined') return;
+            Chart.defaults.color = '#94a3b8';
+            Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.05)';
+        }
+
+        async function fetchEvents() {
+            try {
+                const response = await fetch('/api/events');
+                if (!response.ok) throw new Error('Network response was not ok');
+                const events = await response.json();
+                updateDashboard(events);
+            } catch (error) {
+                console.error('Error fetching events:', error);
+                document.getElementById('status-indicator').innerText = 'Disconnected • Error fetching data';
+                document.getElementById('status-indicator').style.color = '#ef4444';
+            }
+        }
+
+        function updateDashboard(events) {
+            document.getElementById('status-indicator').innerText = 'Connected • Live Updates';
+            document.getElementById('status-indicator').style.color = '#94a3b8';
+
+            const eventList = Array.isArray(events) ? events : [];
+
+            // 1. Update Table
+            const tbody = document.querySelector('#eventsTable tbody');
+            tbody.innerHTML = '';
+
+            if (eventList.length === 0) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = '<td colspan="4" style="text-align:center;color:#94a3b8;padding:2rem;">No events available yet.</td>';
+                tbody.appendChild(tr);
+            } else {
+                eventList.forEach(ev => {
+                    const tr = document.createElement('tr');
+                    const date = ev.timestamp ? new Date(ev.timestamp) : new Date();
+                    const displayDate = Number.isNaN(date.getTime()) ? 'Pending' : date.toLocaleString();
+
+                    tr.innerHTML = `
+                        <td style="color: #cbd5e1; font-family: monospace;">${displayDate}</td>
+                        <td><span class="event-badge">${ev.event_name || 'Unknown'}</span></td>
+                        <td style="color: #cbd5e1;">${ev.source || 'Unknown'}</td>
+                        <td style="color: #64748b; font-family: monospace; font-size: 0.8rem;">${ev.event_id || '—'}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            // 2. Aggregate Data for Charts
+            const typeCounts = {};
+            const sourceCounts = {};
+
+            eventList.forEach(ev => {
+                typeCounts[ev.event_name || 'Unknown'] = (typeCounts[ev.event_name || 'Unknown'] || 0) + 1;
+                sourceCounts[ev.source || 'Unknown'] = (sourceCounts[ev.source || 'Unknown'] || 0) + 1;
+            });
+
+            if (typeof Chart === 'undefined') {
+                setChartFallback('Charts unavailable in this environment.', 'typeChart');
+                setChartFallback('Charts unavailable in this environment.', 'sourceChart');
+                return;
+            }
+
+            configureChartDefaults();
+
+            // 3. Update Type Chart (Doughnut)
+            const typeCtx = document.getElementById('typeChart').getContext('2d');
+            if (typeChartInstance) typeChartInstance.destroy();
+            typeChartInstance = new Chart(typeCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(typeCounts),
+                    datasets: [{
+                        data: Object.values(typeCounts),
+                        backgroundColor: ['#38bdf8', '#818cf8', '#34d399', '#fbbf24', '#f472b6'],
+                        borderWidth: 0,
+                        hoverOffset: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'right' } },
+                    cutout: '70%'
+                }
+            });
+
+            // 4. Update Source Chart (Bar)
+            const sourceCtx = document.getElementById('sourceChart').getContext('2d');
+            if (sourceChartInstance) sourceChartInstance.destroy();
+            sourceChartInstance = new Chart(sourceCtx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(sourceCounts),
+                    datasets: [{
+                        label: 'Events',
+                        data: Object.values(sourceCounts),
+                        backgroundColor: 'rgba(139, 92, 246, 0.8)',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { precision: 0 } }
+                    }
+                }
+            });
+        }
+
+        configureChartDefaults();
+
+        // Fetch immediately, then every 3 seconds
+        fetchEvents();
+        setInterval(fetchEvents, 3000);
+    </script>
+</body>
+</html>

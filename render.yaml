@@ -1,0 +1,34 @@
+services:
+  # The Web API (Flask)
+  - type: web
+    name: telemetry-api
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn main:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: KAFKA_BOOTSTRAP_SERVERS
+        sync: false
+      - key: KAFKA_USERNAME
+        sync: false
+      - key: KAFKA_PASSWORD
+        sync: false
+      - key: API_KEY
+        sync: false
+
+  # The Background Worker (Consumer)
+  - type: worker
+    name: telemetry-consumer
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python receiver_kafka.py
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: KAFKA_BOOTSTRAP_SERVERS
+        sync: false
+      - key: KAFKA_USERNAME
+        sync: false
+      - key: KAFKA_PASSWORD
+        sync: false

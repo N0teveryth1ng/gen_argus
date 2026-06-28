@@ -1,7 +1,8 @@
 Flask==3.0.0
-confluent-kafka==2.3.0
+confluent-kafka==2.6.1
 SQLAlchemy==2.0.25
 python-dotenv==1.0.0
-pydantic==2.5.3
-psycopg2-binary==2.9.9
+pydantic==2.10.6
+psycopg2-binary==2.9.10
 gunicorn==21.2.0
+psutil==7.2.2

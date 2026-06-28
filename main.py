@@ -3,9 +3,12 @@ from sqlalchemy import create_engine, text
 from dotenv import load_dotenv
 import os
 import json
+import time
 from pydantic import ValidationError
 from schemas.event import EventIngestSchema
 from confluent_kafka import Producer
+import psutil
+
 
 load_dotenv()
 
@@ -136,6 +139,55 @@ def test():
 @app.route("/dashboard", methods=["GET"])
 def dashboard():
     return render_template("dashboard.html")
+
+
+# get a /performance for own tekemetry performace running
+@app.route("/performance", methods=["GET"])
+def track_performance():
+    return render_template("perf.html")
+
+# a simple global dictionary to hold system performances state
+SYSTEM_METRICS = {
+    "total_requests_processed": 0,
+    "average_latency_ms": 0.0,
+    "latency_sum_ms": 0.0,
+}
+
+
+@app.before_request
+def track_request_start():
+    request.environ["start_time"] = time.time()
+
+
+@app.after_request
+def update_request_metrics(response):
+    # Skip perf endpoint self-polling and static page rendering from the metrics counters.
+    if request.path in ['/api/perf-metrics', '/performance', '/dashboard', '/static']:
+        return response
+
+    start_time = request.environ.get("start_time")
+    if start_time is not None:
+        elapsed_ms = (time.time() - start_time) * 1000
+        SYSTEM_METRICS["total_requests_processed"] += 1
+        SYSTEM_METRICS["latency_sum_ms"] += elapsed_ms
+        SYSTEM_METRICS["average_latency_ms"] = SYSTEM_METRICS["latency_sum_ms"] / SYSTEM_METRICS["total_requests_processed"]
+    return response
+
+
+# function to track cpu and ram usage
+@app.route("/api/perf-metrics", methods=["GET"])
+def get_perf_metrics():
+    cpu_usage = psutil.cpu_percent(interval=0.1)
+    ram_usage = psutil.virtual_memory().percent
+
+    return jsonify({
+        "server_cpu_percent": cpu_usage,
+        "server_ram_percent": ram_usage,
+        "total_requests": SYSTEM_METRICS["total_requests_processed"],
+        "avg_api_latency_ms": round(SYSTEM_METRICS["average_latency_ms"], 2)
+    }), 200
+
+
 
 @app.route("/api/events", methods=["GET"])
 def get_events():

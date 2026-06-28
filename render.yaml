@@ -7,6 +7,8 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn main:app --bind 0.0.0.0:$PORT
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
       - key: DATABASE_URL
         sync: false
       - key: KAFKA_BOOTSTRAP_SERVERS
@@ -26,6 +28,8 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: python receiver_kafka.py
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
       - key: DATABASE_URL
         sync: false
       - key: KAFKA_BOOTSTRAP_SERVERS

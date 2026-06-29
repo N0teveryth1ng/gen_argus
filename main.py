@@ -26,6 +26,8 @@ def require_api_key():
         if provided_key != API_KEY:
             return jsonify({"error": "Unauthorized. Invalid x-api-key header."}), 401
 
+
+
 KAFKA_BOOTSTRAP_SERVERS = os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'localhost:9092')
 KAFKA_USERNAME = os.getenv('KAFKA_USERNAME')
 KAFKA_PASSWORD = os.getenv('KAFKA_PASSWORD')
@@ -82,6 +84,7 @@ def persist_event(payload):
         )
 
 
+# ingets data in kafka
 @app.route("/ingest", methods=["POST"])
 def ingest_pipeline():
     try:
@@ -146,6 +149,7 @@ def dashboard():
 def track_performance():
     return render_template("perf.html")
 
+
 # a simple global dictionary to hold system performances state
 SYSTEM_METRICS = {
     "total_requests_processed": 0,
@@ -161,6 +165,7 @@ def track_request_start():
 
 @app.after_request
 def update_request_metrics(response):
+    
     # Skip perf endpoint self-polling and static page rendering from the metrics counters.
     if request.path in ['/api/perf-metrics', '/performance', '/dashboard', '/static']:
         return response
@@ -174,7 +179,9 @@ def update_request_metrics(response):
     return response
 
 
-# function to track cpu and ram usage
+
+
+# function to track cpu and ram usage (pressure track)
 @app.route("/api/perf-metrics", methods=["GET"])
 def get_perf_metrics():
     cpu_usage = psutil.cpu_percent(interval=0.1)
@@ -186,6 +193,45 @@ def get_perf_metrics():
         "total_requests": SYSTEM_METRICS["total_requests_processed"],
         "avg_api_latency_ms": round(SYSTEM_METRICS["average_latency_ms"], 2)
     }), 200
+
+
+
+# make it accept input based data on application api
+@app.route("/accept", methods=["POST"])
+def accept_data():
+    
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({"error": "Data missing"}), 400
+
+    required_fields = {"timestamp", "metric_type", "value"}
+    missing_fields = required_fields - data.keys()
+    if missing_fields:
+        return jsonify({
+            "error": "Missing required fields",
+            "missing": list(missing_fields)
+        }), 400
+
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text("""
+                    INSERT INTO system_events (timestamp, metric_type, value)
+                    VALUES (:timestamp, :metric_type, :value)
+                """),
+                {
+                    "timestamp": data["timestamp"],
+                    "metric_type": data["metric_type"],
+                    "value": data["value"],
+                },
+            )
+        return jsonify({"status": "success", "message": "Telemetry recorded"}), 201
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+
 
 
 
